@@ -1,0 +1,86 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Henk Bierman"
+date: "4 May 2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+## Management summary
+
+One thing that people regularly do is quantify how much of a particular exercise activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+## Exploratory data analysis
+
+We load the training dataset (https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) which will, after cleaning, be split in an actual training dataset and a test dataset. 
+The available test dataset (https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv) is loaded as a validation dataset.
+
+```{r}
+library(caret)
+training <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header=TRUE)
+validation <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header=TRUE)
+
+```
+
+Dimension and structure of the dataset:
+```{r}
+str(training)
+dim(training)
+```
+We see that the dataset consists of 19622 records of 160 attributes. It appears that quite some attributes have NA or "" value. These are not relevant predictors for building a robust model. Also the first seven attributes containing username, timestamps and windows are not relevant. We are going to clean the training, test and validation from these attributes, in order to be able to have an optimal fitted model on relevant predictors.
+
+## Data Cleaning and preparing final train-, test- and validation datasets
+
+```{r}
+Remove <- which(colSums(is.na(training) | training == "") > 0.9*dim(training)[1]) 
+TrainData <- training[,-Remove]
+TrainData <- TrainData[,-c(1:7)]
+Validate <- validation[,-Remove]
+Validate <- Validate[,-c(1:7)]
+dim(TrainData)
+dim(Validate)
+inTrain1 <- createDataPartition(TrainData$classe, p=0.75, list=FALSE)
+Train <- TrainData[inTrain1,]
+Test <- TrainData[-inTrain1,]
+dim(Train)
+dim(Test)
+
+```
+We now have Train-, Test- and Validation datasets; each containing 53 predictors. Ready to build the models!
+
+## Model fitting and model selection.
+
+We will create two prediction models (a decision tree and a rondom forest model), train them with the training dataset, and evaluate its accuracy with the test dataset. Based on obtained best accuracy we will choose the best model to produce predictions of the validation dataset.
+
+We will use 5 folds cross-validation.
+
+## Decision Tree Model
+  
+```{r}
+set.seed(5969)
+Control <- trainControl(method="cv", number=5)
+fitDT <- train(classe~., data=Train, method="rpart", trControl=Control)
+predDT <- predict(fitDT, Test)
+confDT <- confusionMatrix(Test$classe,predDT)
+confDT
+```
+
+## Random Forest Model
+
+```{r}
+set.seed(5969)
+## Control <- trainControl(method="cv", number=5)  unfortunately my computer has not enough power for applying CV
+fitRF <- train(classe~., data=Train, method="rf", trControl=Control)
+predRF <- predict(fitRF, Test)
+confRF <- confusionMatrix(Test$classe,predRF)
+confRF
+```
+
+## Conclusion and Prediction
+
+It appears that accuracy of the Random Forest model is 0.99 and by far better than the 0.5 of the Decision Tree model. Therefore the Random Forests model will be used to predict the outcomes of the Validation dataset.
+
+```{r}
+predict(fitRF, Validate)
+```
